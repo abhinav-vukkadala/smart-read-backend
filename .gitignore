@@ -1,12 +1,7 @@
-# Ignore the Python virtual environment
 venv/
 .venv/
 __pycache__/
 *.pyc
-
-# Ignore environment variables/secret keys
 .env
-
-# Ignore OS specific files
 .DS_Store
 Thumbs.db

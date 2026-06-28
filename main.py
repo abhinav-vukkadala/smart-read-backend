@@ -6,10 +6,19 @@ from bs4 import BeautifulSoup
 from google import genai
 from google.genai.errors import APIError
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Allow your React app's address
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (POST, GET, etc.)
+    allow_headers=["*"],  # Allow all security/content headers
+)
 
 class UrlInput(BaseModel):
     url: str
