@@ -1,12 +1,12 @@
 import os
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 import requests
 from bs4 import BeautifulSoup
 from google import genai
 from google.genai.errors import APIError
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -20,21 +20,23 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all security/content headers
 )
 
-class UrlInput(BaseModel):
+# Request schema matching what your frontend is sending
+class ScrapeRequest(BaseModel):
     url: str
+    length: str = "medium"  # options: short, medium, detailed
+    bullets: int = 3        # default to 3 bullets
+
 
 def extract_article_data(url: str):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     try:
-        # Catch common network problems (timeouts, DNS issues)
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, "html.parser")
         
-        # Fallback 1: If there's no <h1>, look for an <h2> or use a default title
         title = soup.find("h1")
         if title:
             title_text = title.get_text(strip=True)
@@ -57,20 +59,28 @@ def extract_article_data(url: str):
         print(f"Unexpected scraping error: {str(e)}")
         return None
 
-def generate_summary(article_text: str):
-    # Guard clause: Don't hit the API if the text is completely empty
+
+def generate_summary(article_text: str, length: str, bullets: int):
     if not article_text.strip():
         return None
         
     try:
         client = genai.Client()
         
-        prompt = (
-            "Analyze the following article text. Provide a highly concise summary consisting of "
-            "exactly three bullet points highlighting the main key takeaways. Do not include any "
-            "introductory or concluding text.\n\n"
-            f"Article Text:\n{article_text}"
-        )
+        # Tailor your prompt using the dynamic configurations from the frontend request
+        prompt = f"""
+        You are an expert research analyst. Analyze the following article text and extract exactly {bullets} core insights.
+        
+        The target depth of each insight should be {length.upper()}.
+        - If SHORT: Keep each bullet extremely concise, snappy, and under one sentence.
+        - If MEDIUM: Provide balanced, clear sentences packed with structural context.
+        - If DETAILED: Provide rich, multi-sentence explanations full of nuance, metrics, and technical depth.
+        
+        Do not include any introductory or concluding text. Return your response strictly as bullet points.
+        
+        Article Text:
+        {article_text}
+        """
         
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -79,24 +89,24 @@ def generate_summary(article_text: str):
         
         bullet_points = [line.strip("- * ") for line in response.text.strip().split("\n") if line.strip()]
         
-        # Fallback 2: Ensure we always have exactly 3 items even if the AI returned fewer
-        while len(bullet_points) < 3:
+        # Fallback layer: ensure match count accuracy
+        while len(bullet_points) < bullets:
             bullet_points.append("No additional takeaways provided.")
             
-        return bullet_points[:3]
+        return bullet_points[:bullets]
         
     except APIError as e:
-        print(f"Gemini API Error (Authentication/Quota): {str(e)}")
+        print(f"Gemini API Error: {str(e)}")
         return None
     except Exception as e:
         print(f"Unexpected AI layer error: {str(e)}")
         return None
 
+
 @app.post("/scrape")
-def scrape_endpoint(input_data: UrlInput):
+def scrape_endpoint(input_data: ScrapeRequest):
     target_url = input_data.url
     
-    # Validate that it's a real HTTP URL string
     if not target_url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Invalid URL format. Must start with http:// or https://")
     
@@ -104,7 +114,13 @@ def scrape_endpoint(input_data: UrlInput):
     if not scraped_result or not scraped_result["body"]:
         raise HTTPException(status_code=400, detail="Could not extract readable main content from this website.")
         
-    summary_bullets = generate_summary(scraped_result["body"])
+    # Pass down the dynamic settings directly to the AI text engine
+    summary_bullets = generate_summary(
+        article_text=scraped_result["body"], 
+        length=input_data.length, 
+        bullets=input_data.bullets
+    )
+    
     if not summary_bullets:
         raise HTTPException(status_code=500, detail="The AI service was unable to generate a summary for this text.")
         
@@ -113,6 +129,7 @@ def scrape_endpoint(input_data: UrlInput):
         "url": target_url,
         "summary": summary_bullets
     }
+
 
 @app.get("/")
 def read_root():

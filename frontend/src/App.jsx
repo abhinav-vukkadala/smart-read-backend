@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 
 function App() {
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState([]);
-  const [title, setTitle] = useState('');
-  const [error, setError] = useState('');
-  
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState("");
+  const [length, setLength] = useState("medium");
+  const [bullets, setBullets] = useState(3);
+
   // State to hold all saved history items
   const [history, setHistory] = useState([]);
 
   // Load saved history from localStorage when the app boots up
   useEffect(() => {
-    const savedHistory = localStorage.getItem('smart_read_history');
+    const savedHistory = localStorage.getItem("smart_read_history");
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
     }
@@ -21,23 +23,27 @@ function App() {
   const handleScrape = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
     setSummary([]);
-    setTitle('');
+    setTitle("");
 
     try {
-      const response = await fetch('http://localhost:8000/scrape', {
-        method: 'POST',
+      const response = await fetch("http://localhost:8000/scrape", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url: url }),
+        body: JSON.stringify({
+          url: url,
+          length: length, // Sends "short", "medium", or "detailed"
+          bullets: bullets, // Sends the exact number
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || 'Something went wrong');
+        throw new Error(data.detail || "Something went wrong");
       }
 
       setTitle(data.title);
@@ -48,13 +54,15 @@ function App() {
         id: Date.now(),
         title: data.title,
         url: url,
-        summary: data.summary
+        summary: data.summary,
       };
-      
+
       const updatedHistory = [newItem, ...history];
       setHistory(updatedHistory);
-      localStorage.setItem('smart_read_history', JSON.stringify(updatedHistory));
-
+      localStorage.setItem(
+        "smart_read_history",
+        JSON.stringify(updatedHistory),
+      );
     } catch (err) {
       setError(err.message);
     } finally {
@@ -67,36 +75,37 @@ function App() {
     setUrl(item.url);
     setTitle(item.title);
     setSummary(item.summary);
-    setError('');
+    setError("");
   };
 
   // Clears a single item from the sidebar
   const deleteHistoryItem = (id, e) => {
     e.stopPropagation(); // Stop from clicking the main item container
-    const updatedHistory = history.filter(item => item.id !== id);
+    const updatedHistory = history.filter((item) => item.id !== id);
     setHistory(updatedHistory);
-    localStorage.setItem('smart_read_history', JSON.stringify(updatedHistory));
+    localStorage.setItem("smart_read_history", JSON.stringify(updatedHistory));
   };
 
   const handleClear = () => {
-    setUrl('');
-    setTitle('');
+    setUrl("");
+    setTitle("");
     setSummary([]);
-    setError('');
+    setError("");
   };
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col md:flex-row">
-      
       {/* LEFT COLUMN: History Sidebar */}
       <aside className="w-full md:w-80 bg-slate-950 border-b md:border-b-0 md:border-r border-slate-800 p-6 flex flex-col shrink-0">
         <h2 className="text-xl font-bold tracking-wide text-slate-200 mb-4 flex items-center gap-2">
           <span>⏳</span> Recent Summaries
         </h2>
-        
+
         <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-64 md:max-h-[calc(100vh-120px)]">
           {history.length === 0 ? (
-            <p className="text-sm text-slate-500 italic mt-4 text-center">No history cached yet.</p>
+            <p className="text-sm text-slate-500 italic mt-4 text-center">
+              No history cached yet.
+            </p>
           ) : (
             history.map((item) => (
               <div
@@ -131,12 +140,14 @@ function App() {
             Smart Read Aggregator
           </h1>
           <p className="mt-3 text-base md:text-lg text-slate-400">
-            Paste any long article link below and let Gemini extract the core insights in seconds.
+            Paste any long article link below and let Gemini extract the core
+            insights in seconds.
           </p>
         </header>
 
         <main className="max-w-2xl w-full bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-700/60 backdrop-blur-sm">
-          <form onSubmit={handleScrape} className="flex flex-col gap-4">
+          <form onSubmit={handleScrape} className="flex flex-col gap-5">
+            {/* URL Input Bar */}
             <div className="w-full">
               <input
                 type="url"
@@ -148,13 +159,62 @@ function App() {
               />
             </div>
 
+            {/* NEW: Summary Configuration Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-900/40 p-4 rounded-xl border border-slate-700/50">
+              {/* Summary Length Selector */}
+              <div className="flex flex-col gap-1.5 text-left">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Summary Depth
+                </label>
+                <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-lg border border-slate-700">
+                  {["short", "medium", "detailed"].map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setLength(opt)}
+                      className={`capitalize text-xs font-semibold py-1.5 px-2 rounded-md transition-all ${
+                        length === opt
+                          ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bullet Point Counter Slider */}
+              <div className="flex flex-col gap-1.5 text-left">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Bullet Points
+                  </label>
+                  <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+                    {bullets} Items
+                  </span>
+                </div>
+                <div className="flex items-center bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 h-[38px]">
+                  <input
+                    type="range"
+                    min="1"
+                    max="7"
+                    value={bullets}
+                    onChange={(e) => setBullets(parseInt(e.target.value))}
+                    className="w-full accent-cyan-500 cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons Row */}
             <div className="flex flex-col sm:flex-row gap-3 w-full">
               <button
                 type="submit"
                 disabled={loading}
                 className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 font-semibold py-3 rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all text-white disabled:opacity-50"
               >
-                {loading ? 'Analyzing...' : 'Summarize'}
+                {loading ? "Analyzing..." : "Summarize"}
               </button>
 
               {(url || title || summary.length > 0) && (
@@ -186,10 +246,15 @@ function App() {
 
           {!loading && (title || summary.length > 0) && (
             <div className="mt-8 border-t border-slate-700/60 pt-6">
-              <h2 className="text-xl font-bold text-slate-100 mb-5 leading-snug">{title}</h2>
+              <h2 className="text-xl font-bold text-slate-100 mb-5 leading-snug">
+                {title}
+              </h2>
               <ul className="space-y-4">
                 {summary.map((bullet, index) => (
-                  <li key={index} className="flex items-start gap-3 text-slate-300 bg-slate-900/40 p-4 rounded-xl border border-slate-700/40">
+                  <li
+                    key={index}
+                    className="flex items-start gap-3 text-slate-300 bg-slate-900/40 p-4 rounded-xl border border-slate-700/40"
+                  >
                     <span className="text-cyan-400 mt-1 select-none">✦</span>
                     <span className="leading-relaxed">{bullet}</span>
                   </li>
