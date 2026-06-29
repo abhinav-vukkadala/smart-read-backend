@@ -8,6 +8,7 @@ function App() {
   const [error, setError] = useState("");
   const [length, setLength] = useState("medium");
   const [bullets, setBullets] = useState(3);
+  const [copied, setCopied] = useState(false);
 
   // State to hold all saved history items
   const [history, setHistory] = useState([]);
@@ -244,12 +245,44 @@ function App() {
             </div>
           )}
 
+          {/* AI Results Display */}
           {!loading && (title || summary.length > 0) && (
             <div className="mt-8 border-t border-slate-700/60 pt-6">
-              <h2 className="text-xl font-bold text-slate-100 mb-5 leading-snug">
-                {title}
-              </h2>
-              <ul className="space-y-4">
+              {/* Title block with Copy to Clipboard Action */}
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-5">
+                <h2 className="text-xl font-bold text-slate-100 flex-1 leading-snug text-left">
+                  {title}
+                </h2>
+                <button
+                  type="button"
+                  disabled={copied}
+                  onClick={() => {
+                    const markdownText = `### ${title}\n\n${summary.map((bullet) => `* ${bullet}`).join("\n")}`;
+                    navigator.clipboard.writeText(markdownText);
+
+                    // Switch state to true, then revert back after 1 seconds
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1000);
+                  }}
+                  className={`shrink-0 text-xs font-semibold border px-3 py-2 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 self-start ${
+                    copied
+                      ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-400"
+                      : "bg-slate-900 border-slate-700 hover:border-slate-600 text-cyan-400 hover:text-cyan-300"
+                  }`}
+                >
+                  {copied ? (
+                    <>
+                      <span>✅</span> Copied!
+                    </>
+                  ) : (
+                    <>
+                      <span>📋</span> Copy
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <ul className="space-y-4 text-left">
                 {summary.map((bullet, index) => (
                   <li
                     key={index}
