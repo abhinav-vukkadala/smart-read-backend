@@ -108,28 +108,66 @@ function App() {
               No history cached yet.
             </p>
           ) : (
-            history.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => loadHistoryItem(item)}
-                className="group relative text-left w-full p-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-xl cursor-pointer transition-all duration-200 flex justify-between items-start gap-2"
-              >
-                <div className="truncate flex-1">
-                  <p className="text-sm font-semibold text-slate-300 group-hover:text-cyan-400 truncate">
-                    {item.title}
-                  </p>
-                  <span className="text-xs text-slate-500 truncate block mt-0.5">
-                    {item.url}
-                  </span>
-                </div>
-                <button
-                  onClick={(e) => deleteHistoryItem(item.id, e)}
-                  className="text-slate-600 hover:text-red-400 text-xs px-1.5 py-0.5 rounded transition-colors duration-200 opacity-0 group-hover:opacity-100"
+            // Sort pinned items to the top, then sort by newest id
+            [...history]
+              .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+              .map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => loadHistoryItem(item)}
+                  className={`group relative text-left w-full p-3 bg-slate-900 hover:bg-slate-800 border rounded-xl cursor-pointer transition-all duration-200 flex justify-between items-start gap-2 ${
+                    item.pinned
+                      ? "border-amber-500/40 bg-amber-950/5"
+                      : "border-slate-800 hover:border-slate-700"
+                  }`}
                 >
-                  ✕
-                </button>
-              </div>
-            ))
+                  <div className="truncate flex-1">
+                    <p className="text-sm font-semibold text-slate-300 group-hover:text-cyan-400 truncate flex items-center gap-1.5">
+                      {item.pinned && (
+                        <span className="text-amber-400 shrink-0">⭐</span>
+                      )}
+                      <span className="truncate">{item.title}</span>
+                    </p>
+                    <span className="text-xs text-slate-500 truncate block mt-0.5">
+                      {item.url}
+                    </span>
+                  </div>
+
+                  {/* Action Buttons: Pin & Delete */}
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // Stop from opening the item
+                        const updatedHistory = history.map((h) =>
+                          h.id === item.id ? { ...h, pinned: !h.pinned } : h,
+                        );
+                        setHistory(updatedHistory);
+                        localStorage.setItem(
+                          "smart_read_history",
+                          JSON.stringify(updatedHistory),
+                        );
+                      }}
+                      className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
+                        item.pinned
+                          ? "text-amber-400 hover:text-slate-400"
+                          : "text-slate-500 hover:text-amber-400"
+                      }`}
+                      title={
+                        item.pinned ? "Unpin summary" : "Pin summary to top"
+                      }
+                    >
+                      📌
+                    </button>
+                    <button
+                      onClick={(e) => deleteHistoryItem(item.id, e)}
+                      className="text-slate-500 hover:text-red-400 text-xs px-1.5 py-0.5 rounded transition-colors"
+                      title="Delete summary"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))
           )}
         </div>
       </aside>
